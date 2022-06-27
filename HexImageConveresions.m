@@ -10,62 +10,84 @@
 Img = imread('Family2.JPG');
 %% Coordinate of image pixels
 xDim = size(Img,2); yDim = size(Img,1);
+nPixel = xDim * yDim;
 xx = 1:xDim; yy = 1:yDim;
 xxyy = combvec(xx,yy); % xy coordinates of all pixel in image. Upper left pixel: (1,1)
 qrs = p2h(xxyy); % pixel positions in cubic coordinates
 
-%% calculate grid
-cr = ax2oddr(round(qrs));
-colMin =min(cr(1,:));
-colMax =max(cr(1,:));
-rowMin =min(cr(2,:));
-rowMax =max(cr(2,:));
-%%
-ccc = 0:colMax;%10;
-rrr = 0:rowMax;%10;
-gridCR = combvec(ccc,rrr);
-gridHex = oddr2ax(gridCR);
-gridXY = h2p(gridHex);
+%% calculate grid that spans the image
 
-% down sampling
-downsamp = 10;
-sampHex = (gridHex) * downsamp;
+gridHex = unique(cube_round(qrs)','row')';
+nHexel = size(gridHex,2);
+gridXY = h2p(gridHex);
+% figure; 
+% imagesc(Img);hold on; 
+% scatter(gridXY(1,:),gridXY(2,:),'.')
+disp(['Number of pixels: ',num2str(nPixel), ' (',num2str(xDim),' x ',num2str(yDim),')'])
+disp(['Number of hexels: ',num2str(nHexel)])
+%% calculate grid for down sampling
+
+% expand grid
+sampHex = (gridHex) * downsamp; 
 sampXY = h2p(sampHex);
-sel = sampXY(1,:) < xDim & sampXY(2,:) < yDim & sampXY(1,:) > 0 & sampXY(2,:) > 0;
-sampHex = sampHex(:,sel);
-sampCR = ax2oddr(sampHex);
-sampXY = sampXY(:,sel);
+% exclude out of bound hexels
+sel = sampXY(1,:) <= xDim & sampXY(2,:) <= yDim & sampXY(1,:) > 0 & sampXY(2,:) > 0;
+sampHex = sampHex(:,sel);sampXY = sampXY(:,sel);
+% get column-row (odd-r) representation
+sampCR = ax2oddr(sampHex./downsamp);
+nSamp = size(sampHex,2);
+disp(['Number of downsampled hexels: ',num2str(nSamp)])
+
+clear('sel');
+
 %% sampling pixel intensity
+% & generate pixelation image
 nCh = size(Img,3);
 CData_samp = nan(size(sampXY,2),nCh);
 CData_mean = nan(size(sampXY,2),nCh);
+HexelateImg_samp = nan(size(Img));
+HexelateImg_mean = nan(size(Img));
+
 % nearest central pixel
+tic
 for ii = 1:size(sampXY,2)
     CData_samp(ii,:) = squeeze(Img(round(sampXY(2,ii)),round(sampXY(1,ii)),:));
 end
+disp('Sampling done.')
+toc
 
-% mean (to be done)
+% mean 
+tic
+
 mapHex = downsamp*cube_round(qrs./downsamp);
 for ii = 1:size(sampXY,2)
     sel = all(sampHex(:,ii) == mapHex,1);
+%     subplot(1,3,2)
+%     scatter(xxyy(1,sel),xxyy(2,sel))
+    nn = sum(sel);
     for ch = 1:nCh
-        CData_mean(ii,ch) = mean(Img(xxyy(2,sel),xxyy(1,sel),ch),'all');
+        linearInd = sub2ind([yDim,xDim,nCh], xxyy(2,sel), xxyy(1,sel),ch*ones(1,nn));
+        CData_mean(ii,ch) = mean(Img(linearInd),'all');
+        HexelateImg_samp(linearInd) =CData_samp(ii,ch);
+        HexelateImg_mean(linearInd) =CData_mean(ii,ch);
     end
 end
+disp('Averaging done.')
+toc
 
 %% Show images (R,G,B, RGB)
 fig = figure;
 fig.Position = [300,50,750,750];
 Colors = {'r','g','b'};%{'c','m','y'};
 nSteps = 8;
-for ch = 1:3
+for ch = 1:nCh
     subplot(2,2,ch)
         sz = 10*szLU(-CData_mean(:,ch),nSteps);%round((280-CData_mean(:,ch))./64)+eps;
 
 %     scatter(sampXY(1,:),sampXY(2,:),sz,Colors{ch},'filled');
     scatter(sampXY(1,:),sampXY(2,:),sz,'filled');
     set(gca,'YDir','reverse');
-    axis square
+%     axis square
         ylim([0,yDim+1]);xlim([0,xDim+1]);
     title(Colors{ch});
 end
@@ -74,7 +96,7 @@ scatter(sampXY(1,:),sampXY(2,:),9,CData_mean./255,'filled');
 set(gca,'YDir','reverse');
     ylim([0,yDim+1]);xlim([0,xDim+1]);
 
-axis square
+% axis square
 
 fig.PaperUnits = 'inches';
 fig.PaperSize = fig.Position(3:4)./96; %96 dpi
@@ -83,47 +105,68 @@ saveas(fig,'sampOutput.pdf')
 fig = figure;
 fig.Position = [200,300,900,300];
 
-
-    subplot(1,3,1)
+% original image
+subplot(1,3,1)
     imagesc(Img);
     axis square
     
-ch = 3;
-    sz = round((280-CData_samp(:,ch))./32);
-    nColors = max(unique(sz));
+% scaled
+    ch = 3; % channel to use
+    dotScale = 2;
+    useMean = 1;
+    sz_mean = (nSteps-1)*szLU(-CData_mean(:,ch),nSteps);%round((280-CData_mean(:,ch))./32);
+    sz_samp = (nSteps-1)*szLU(-CData_samp(:,ch),nSteps);%round((280-CData_samp(:,ch))./32);
+    if(useMean); sz = sz_mean; else; sz = sz_samp; end
+    [uSz,ia,ic] = unique(sz);
+    nColors = length(uSz);
+%     CScale = colorcube(nColors);
     CScale = jet(nColors);
-    c = CScale(sz,:);
+%     CScale = lines(nColors);
+    c = CScale(ic,:);
     subplot(1,3,2)
-    scatter(sampXY(1,:),sampXY(2,:),sz,'filled');
+    scatter(sampXY(1,:),sampXY(2,:),dotScale*sz,'filled');
     set(gca,'YDir','reverse');
     ylim([0,yDim]);xlim([0,xDim]);
     axis square
-
-    sz_mean = round((280-CData_mean(:,ch))./32);
 
     subplot(1,3,3)
-%     scatter(sampXY(1,:),sampXY(2,:),sz,c,'filled');
-        scatter(sampXY(1,:),sampXY(2,:),sz_mean,'filled');
+    scatter(sampXY(1,:),sampXY(2,:),15,c,'filled');
+%         scatter(sampXY(1,:),sampXY(2,:),sz_mean,'filled');
 
     set(gca,'YDir','reverse');
     ylim([0,yDim]);xlim([0,xDim]);
     axis square
-%% test functions
-% for ii = 1:size(gridXY,2)
-ii = 1;
-    text(sampXY(1,ii),sampXY(2,ii),...
-        sprintf('(%.1f,%.1f,%.1f)',sampHex(1,ii),sampHex(2,ii),sampHex(3,ii))...
-        )
-% end
-%%
+colormap(CScale);
+caxis([min(uSz)-.5,max(uSz)+.5])
+colorbar('Ticks',uSz,'Position',[.92,.3,.02,.5]);
 
-for jj = (5*xDim)+(1:xDim*20)
-    
-    text(xxyy(1,jj),xxyy(2,jj),...
-        sprintf('(%.0f,%.0f,%.0f)',mapHex(1,jj),mapHex(2,jj),mapHex(3,jj)),...
-        ...sprintf('(%.1f,%.1f,%.1f)',qrs(1,jj),qrs(2,jj),qrs(3,jj)),...
-        'Color','w')
+% label extremes
+locExtremes = nan(4,1);
+[~,locExtremes(1)] = min([1,1]*sampXY,[],2);
+[~,locExtremes(2)] = min([1,-1]*sampXY,[],2);
+[~,locExtremes(3)] = max([1,1]*sampXY,[],2);
+[~,locExtremes(4)] = max([1,-1]*sampXY,[],2);
+
+% locExtremes = union(locMinCR,locMaxCR);
+for ii = 1:length(locExtremes)
+    idx = locExtremes(ii);
+    text(sampXY(1,idx),sampXY(2,idx),['(',num2str(sampCR(1,idx)),',',num2str(sampCR(2,idx)),')'],...
+        'FontSize',8);
 end
+
+fig.PaperUnits = 'inches';
+fig.PaperSize = fig.Position(3:4)./96; %96 dpi
+saveas(fig,'sampOutput.pdf')
+
+%% Hexelate Images
+fig = figure;
+fig.Position = [200,300,900,250];
+    subplot(1,3,1)
+    imagesc(Img); axis square;
+    subplot(1,3,2)
+    image(HexelateImg_samp./255); axis square;
+    subplot(1,3,3)
+    image(HexelateImg_mean./255); axis square;
 
 %%
 function [xy] = h2p(qrs)
@@ -185,5 +228,5 @@ function sz = szLU(vals,nSteps)
     minV = min(vals,[],'all');
     maxV = max(vals,[],'all');
     
-    sz = round ( (nSteps - 1) .* (vals - minV) ./ (maxV-minV ) ) ./ (nSteps-1) + eps;
+    sz = (round ( (nSteps - 1) .* (vals - minV) ./ (maxV-minV ) ) ./ (nSteps-1)) + eps;
 end
