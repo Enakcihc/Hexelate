@@ -3,11 +3,19 @@
 % Artistic style inspired by two artists residing in Rotterdam, Netherlands
 % whose names I need to figure out to give proper credit.
 %
-% written by Aaron B. Wong (2022)
+% Written by Aaron B. Wong (2022)
+%
+% Written in Matlab R2019a.
 
 %% 
-% Img = imread('sampImage2.JPG');
-Img = imread('Family2.JPG');
+% Img = imread('private\sampImage2.JPG');
+% Img = imread('private\Family2.JPG');
+
+Img = imread('private\373_NZ68521-bewerkt_cropped.jpg'); downsamp = 20;
+
+% Img = imread('Colourful_Flower_01.jpg'); downsamp = 100;
+
+
 %% Coordinate of image pixels
 xDim = size(Img,2); yDim = size(Img,1);
 nPixel = xDim * yDim;
@@ -38,7 +46,18 @@ sampCR = ax2oddr(sampHex./downsamp);
 nSamp = size(sampHex,2);
 disp(['Number of downsampled hexels: ',num2str(nSamp)])
 
-clear('sel');
+% calculate axis labels
+sel = sampCR(2,:) == min(sampCR(2,:));
+ColLbl_x = sampXY(1,sel);
+ColLbls = sampCR(1,sel);
+sel = sampCR(1,:) == min(sampCR(1,:));
+RowLbl_x = sampXY(2,sel);
+RowLbls = sampCR(2,sel);
+[RowLbls,idx] = sort(RowLbls);
+RowLbl_x = RowLbl_x(idx);
+
+clear('sel','idx');
+
 
 %% sampling pixel intensity
 % & generate pixelation image
@@ -75,6 +94,14 @@ end
 disp('Averaging done.')
 toc
 
+%% output to JSON
+
+ch = 2;
+fileID = fopen('Hexelated.json','w');
+JSON = jsonencode(table(sampXY(1,:)',sampXY(2,:)',CData_mean(:,ch),...
+                'VariableNames',{'x','y','c'}));
+fwrite(fileID,JSON);
+fclose(fileID);
 %% Show images (R,G,B, RGB)
 fig = figure;
 fig.Position = [300,50,750,750];
@@ -100,10 +127,12 @@ set(gca,'YDir','reverse');
 
 fig.PaperUnits = 'inches';
 fig.PaperSize = fig.Position(3:4)./96; %96 dpi
-saveas(fig,'sampOutput.pdf')
+% saveas(fig,'sampOutput.pdf')
 %% demo
 fig = figure;
 fig.Position = [200,300,900,300];
+
+nSteps = 8;
 
 % original image
 subplot(1,3,1)
@@ -120,11 +149,11 @@ subplot(1,3,1)
     [uSz,ia,ic] = unique(sz);
     nColors = length(uSz);
 %     CScale = colorcube(nColors);
-    CScale = jet(nColors);
+    CScale = 0.8.*jet(nColors);
 %     CScale = lines(nColors);
     c = CScale(ic,:);
     subplot(1,3,2)
-    scatter(sampXY(1,:),sampXY(2,:),dotScale*sz,'filled');
+    scatter(sampXY(1,:),sampXY(2,:),dotScale*sz,c,'filled');
     set(gca,'YDir','reverse');
     ylim([0,yDim]);xlim([0,xDim]);
     axis square
@@ -135,6 +164,50 @@ subplot(1,3,1)
 
     set(gca,'YDir','reverse');
     ylim([0,yDim]);xlim([0,xDim]);
+    axis square
+colormap(CScale);
+caxis([min(uSz)-.5,max(uSz)+.5])
+colorbar('Ticks',uSz,'Position',[.92,.3,.02,.5]);
+
+% ticks
+xticks(ColLbl_x);xticklabels(ColLbls);
+yticks(RowLbl_x);yticklabels(RowLbls);
+
+% label extremes
+locExtremes = nan(4,1);
+[~,locExtremes(1)] = min([1,1]*sampXY,[],2);
+[~,locExtremes(2)] = min([1,-1]*sampXY,[],2);
+[~,locExtremes(3)] = max([1,1]*sampXY,[],2);
+[~,locExtremes(4)] = max([1,-1]*sampXY,[],2);
+
+% locExtremes = union(locMinCR,locMaxCR);
+for ii = 1:length(locExtremes)
+    idx = locExtremes(ii);
+    text(sampXY(1,idx),sampXY(2,idx),['(',num2str(sampCR(1,idx)),',',num2str(sampCR(2,idx)),')'],...
+        'FontSize',8);
+end
+
+fig.PaperUnits = 'inches';
+fig.PaperSize = fig.Position(3:4)./96; %96 dpi
+% saveas(fig,'sampOutput.pdf')
+saveas(fig,'sampOutput_mean.png')
+
+%% Instruction
+fig = figure;
+fig.Position = [100,100,1200,500];
+    dotScale = 12;
+    subplot(1,2,1)
+    scatter(sampXY(1,:),sampXY(2,:),dotScale*sz,'filled');
+    set(gca,'YDir','reverse');
+    ylim([0,yDim]);xlim([0,xDim]);
+    axis square
+    subplot(1,2,2)
+    scatter(sampXY(1,:),sampXY(2,:),dotScale*nSteps/2,c,'filled');
+
+    set(gca,'YDir','reverse');
+    ylim([0,yDim]);xlim([0,xDim]);
+    
+    
     axis square
 colormap(CScale);
 caxis([min(uSz)-.5,max(uSz)+.5])
@@ -156,8 +229,7 @@ end
 
 fig.PaperUnits = 'inches';
 fig.PaperSize = fig.Position(3:4)./96; %96 dpi
-saveas(fig,'sampOutput.pdf')
-
+% saveas(fig,'instruction.pdf')
 %% Hexelate Images
 fig = figure;
 fig.Position = [200,300,900,250];
