@@ -8,13 +8,8 @@
 % Written in Matlab R2019a.
 
 %% 
-% Img = imread('private\sampImage2.JPG');
-% Img = imread('private\Family2.JPG');
-
-Img = imread('private\373_NZ68521-bewerkt_cropped.jpg'); downsamp = 20;
-
-% Img = imread('Colourful_Flower_01.jpg'); downsamp = 100;
-
+clear; close all
+ImgMat = imread('Kek-Look-Tong-square.JPG'); hexWidthPx = 25;
 
 %% Coordinate of image pixels
 xDim = size(Img,2); yDim = size(Img,1);
