@@ -1,7 +1,7 @@
 % hex-coordinate functions based on redblobgames
 % https://www.redblobgames.com/grids/hexagons
-% Artistic style inspired by two artists residing in Rotterdam, Netherlands
-% whose names I need to figure out to give proper credit.
+% Artistic style inspired by two artists residing in Rotterdam,
+% Netherlands: Michael Bom and Boris Pas. 
 %
 % Written by Aaron B. Wong (2022)
 %
