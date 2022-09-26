@@ -11,4 +11,4 @@ I wrote this code in 2022 to aid create a physical art work for my wife's birthd
 # Credit
 
 The part of the code that deals with hexagonal coordinate systems was adapted from codes created by [Red Blob Games](https://www.redblobgames.com/grids/hexagons), who released their codes under a CC0 license. 
-The artistic style of dot image was inspired by two artists as of 2022 residing in [Ateliers Ackersdijkstraat 20] (http://ackersdijkstraat20.nl/), Rotterdam, Netherlands: Michael Bom  [http://michaelbom.com/] and Boris Pas. 
+The artistic style of dot image was inspired by two artists as of 2022 residing in [Ateliers Ackersdijkstraat 20](http://ackersdijkstraat20.nl/), Rotterdam, Netherlands: [Michael Bom](http://michaelbom.com/) and Boris Pas. 
