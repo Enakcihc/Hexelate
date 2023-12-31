@@ -9,6 +9,8 @@ I wrote this code in 2022 to aid create a physical art work for my wife's birthd
 
 Hexelate is useful for anybody who wants to generate a similar kind of hexelated images or artwork with their own picture.
 
+**updated Dec 2023**: A new python based code to create a different kind of grid based on the ["squircle"] (https://en.wikipedia.org/wiki/Squircle). Instruction pending.
+
 # Instructions
 
 ## Installation
@@ -39,3 +41,4 @@ canvasHeight = 50; % cm
 
 The part of the code that deals with hexagonal coordinate systems was adapted from codes created by [Red Blob Games](https://www.redblobgames.com/grids/hexagons), who released their codes under a CC0 license. 
 The artistic style of dot image was inspired by two artists as of 2022 residing in [Ateliers Ackersdijkstraat 20](http://ackersdijkstraat20.nl/), Rotterdam, Netherlands: [Michael Bom](http://michaelbom.com/) and Boris Pas. 
+The artistic style of squircle tiles was inspired by the weavework "Gradient Cutout" (2021) by the artist [Ishraq Zraikat](https://www.instagram.com/ishraqzraikat/) as part of the "Just like Escher" exhibition at the Escher in Paleis museum (https://www.instagram.com/p/CzOpCwIMUo0/), which I visited in 2023.
