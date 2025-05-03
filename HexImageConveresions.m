@@ -11,91 +11,113 @@
 clear; close all
 ImgMat = imread('sample\Leonardo-Mona-Lisa.jpg');hexWidthPx = 30;
 
-%% Coordinate of image pixels
-xDim = size(ImgMat,2); yDim = size(ImgMat,1);
-nPixel = xDim * yDim;
-xx = 1:xDim; yy = 1:yDim;
-ImgPx.pxy = combvec(xx,yy); % xy coordinates of all pixel in image. Upper left pixel: (1,1)
-clear('xx','yy');
 
-%% calculate downsampled grid that spans the image
-samp.cr = unique(dw_round(p2dw(ImgPx.pxy)./ hexWidthPx)','row','stable')';
-samp.pxy = dw2p(samp.cr)*hexWidthPx;
-% exclude out of bound hexels
-sel = samp.pxy(1,:) <= xDim & samp.pxy(2,:) <= yDim & samp.pxy(1,:) > 0 & samp.pxy(2,:) > 0;
-samp.pxy = samp.pxy(:,sel);
-samp.cr = samp.cr(:,sel);samp.qrs = dw2cube(samp.cr);
-nSamp = size(samp.pxy,2);
+%%
+nRow_target = 40;
+hexImgAvg_double = hexSamp(ImgMat,nRow_target);
 
-disp(['Number of pixels: ',num2str(nPixel), ' (',num2str(xDim),' x ',num2str(yDim),')'])
-disp(['Number of downsampled hexels: ',num2str(nSamp)])
-clear('sel');
+% Create a linear array of pixel values and their x and y coordinates
+pixelArray = hexDouble2Array(hexImgAvg_double);
+%% display the image
 
-%% calculate output size
-% specify canvas size
-canvasWidth = 50; % cm
-canvasHeight = 50; % cm
-minCol = min(samp.cr(1,:)); maxCol = max(samp.cr(1,:));
-minRow = min(samp.cr(2,:)); maxRow = max(samp.cr(2,:));
-nCols = 0.5 * (maxCol - minCol) + 1;
-nRows = (maxRow - minRow) + 1;
-
-disp(['Number of columns: ',num2str(nCols),...
-      '   Number of rows: ',num2str(nRows)]);
-
-% distance between centers of adjacent hexels
-margin = 0.25; % fraction of 1 Hex
-a = sqrt(3) / 2; % vertical distance between adjacent rows
-HexDist1 = canvasWidth / (nCols+2*margin); % 2 * margin on both sides
-HexDist2 =  canvasHeight / (nRows+2*margin) /  a; % 2 * margin on both sides
-HexDist = min(HexDist1,HexDist2);
-
-canvasXOffset = 0.5 * canvasWidth - 0.5*(nCols-1)*HexDist;
-canvasYOffset = 0.5 * canvasHeight - 0.5*(nRows-1)*a*HexDist;
-minPntXY = HexDist*h2p(dw2cube([minCol;minRow]));
-canvasOffset = [canvasXOffset;canvasYOffset] - minPntXY;
-
-samp.xy = HexDist*dw2p(samp.cr)+canvasOffset;
-
-%% sampling pixel intensity
-% & generate pixelation image
-nCh = size(ImgMat,3);
-samp.c_samp = nan(size(samp.pxy,2),nCh);
-samp.c_mean = nan(size(samp.pxy,2),nCh);
-HexelateImg_samp = nan(size(ImgMat));
-HexelateImg_mean = nan(size(ImgMat));
-
-% nearest central pixel
-tic
-for ii = 1:size(samp.pxy,2)
-    samp.c_samp(ii,:) = squeeze(ImgMat(round(samp.pxy(2,ii)),round(samp.pxy(1,ii)),:));
+subplot(2,3,1)
+image(ImgMat)
+subplot(2,3,2)
+image(uint8(hexImgAvg_double))
+nRows = size(hexImgAvg_double,1);
+nCols = size(hexImgAvg_double,2);
+for ch = 1:3
+    ax = subplot(2,3,3+ch);
+    nSteps = 7;
+    sz = szLU(-double(pixelArray(:,ch+2)),nSteps);
+    maxMrkrSize = 20;
+    Color = 'k';
+    scatter(pixelArray(:,1),pixelArray(:,2),maxMrkrSize.*sz,Color,'filled','Marker','o');
+    ax.YDir = 'reverse';
+    ax.YLim = [0.5,nRows+0.5];
+    ax.XLim = [0.5,nCols+0.5];
 end
-disp('Sampling done.')
-toc
+%%
+% %% calculate downsampled grid that spans the image
+% samp.cr = unique(dw_round(p2dw(ImgPx.pxy)./ hexWidthPx)','row','stable')';
+% samp.pxy = dw2p(samp.cr)*hexWidthPx;
+% % exclude out of bound hexels
+% sel = samp.pxy(1,:) <= xDim & samp.pxy(2,:) <= yDim & samp.pxy(1,:) > 0 & samp.pxy(2,:) > 0;
+% samp.pxy = samp.pxy(:,sel);
+% samp.cr = samp.cr(:,sel);samp.qrs = dw2cube(samp.cr);
+% nSamp = size(samp.pxy,2);
 
-% mean 
-tic
+% disp(['Number of pixels: ',num2str(nPixel), ' (',num2str(xDim),' x ',num2str(yDim),')'])
+% disp(['Number of downsampled hexels: ',num2str(nSamp)])
+% clear('sel');
 
-% mapHex = cube_round(ImgPx.qrs ./ hexWidthPx);
-mapHex = dw_round(p2dw(ImgPx.pxy) ./ hexWidthPx);
+% %% calculate output size
+% % specify canvas size
+% canvasWidth = 50; % cm
+% canvasHeight = 50; % cm
+% minCol = min(samp.cr(1,:)); maxCol = max(samp.cr(1,:));
+% minRow = min(samp.cr(2,:)); maxRow = max(samp.cr(2,:));
+% nCols = 0.5 * (maxCol - minCol) + 1;
+% nRows = (maxRow - minRow) + 1;
 
-for ii = 1:size(samp.pxy,2)
-    sel = all(samp.cr(:,ii) == mapHex,1);
-    nn = sum(sel);
-    for ch = 1:nCh
-        linearInd = sub2ind([yDim,xDim,nCh], ImgPx.pxy(2,sel), ImgPx.pxy(1,sel),ch*ones(1,nn));
-        samp.c_mean(ii,ch) = mean(ImgMat(linearInd),'all');
-%         HexelateImg_samp(linearInd) =samp.c_samp(ii,ch);
-%         HexelateImg_mean(linearInd) =samp.c_mean(ii,ch);
-    end
-end
-disp('Averaging done.')
-toc
+% disp(['Number of columns: ',num2str(nCols),...
+%       '   Number of rows: ',num2str(nRows)]);
+
+% % distance between centers of adjacent hexels
+% margin = 0.25; % fraction of 1 Hex
+% a = sqrt(3) / 2; % vertical distance between adjacent rows
+% HexDist1 = canvasWidth / (nCols+2*margin); % 2 * margin on both sides
+% HexDist2 =  canvasHeight / (nRows+2*margin) /  a; % 2 * margin on both sides
+% HexDist = min(HexDist1,HexDist2);
+
+% canvasXOffset = 0.5 * canvasWidth - 0.5*(nCols-1)*HexDist;
+% canvasYOffset = 0.5 * canvasHeight - 0.5*(nRows-1)*a*HexDist;
+% minPntXY = HexDist*h2p(dw2cube([minCol;minRow]));
+% canvasOffset = [canvasXOffset;canvasYOffset] - minPntXY;
+
+% samp.xy = HexDist*dw2p(samp.cr)+canvasOffset;
+
+% %% sampling pixel intensity
+% % & generate pixelation image
+% nCh = size(ImgMat,3);
+% samp.c_samp = nan(size(samp.pxy,2),nCh);
+% samp.c_mean = nan(size(samp.pxy,2),nCh);
+% HexelateImg_samp = nan(size(ImgMat));
+% HexelateImg_mean = nan(size(ImgMat));
+
+% % nearest central pixel
+% tic
+% for ii = 1:size(samp.pxy,2)
+%     samp.c_samp(ii,:) = squeeze(ImgMat(round(samp.pxy(2,ii)),round(samp.pxy(1,ii)),:));
+% end
+% disp('Sampling done.')
+% toc
+
+% % mean 
+% tic
+
+% % mapHex = cube_round(ImgPx.qrs ./ hexWidthPx);
+% mapHex = dw_round(p2dw(ImgPx.pxy) ./ hexWidthPx);
+
+% for ii = 1:size(samp.pxy,2)
+%     sel = all(samp.cr(:,ii) == mapHex,1);
+%     nn = sum(sel);
+%     for ch = 1:nCh
+%         linearInd = sub2ind([yDim,xDim,nCh], ImgPx.pxy(2,sel), ImgPx.pxy(1,sel),ch*ones(1,nn));
+%         samp.c_mean(ii,ch) = mean(ImgMat(linearInd),'all');
+% %         HexelateImg_samp(linearInd) =samp.c_samp(ii,ch);
+% %         HexelateImg_mean(linearInd) =samp.c_mean(ii,ch);
+%     end
+% end
+% disp('Averaging done.')
+% toc
 
 clear('ii','nn','sel')
 
 %% outputs
 
+ch2Use = 2;
+ch = max(ch2Use,nCh);
 outTable = table(samp.pxy(1,:)',samp.pxy(2,:)',...
                 samp.qrs(1,:)',samp.qrs(2,:)',samp.qrs(3,:)',...
                 samp.cr(1,:)',samp.cr(2,:)',...
@@ -104,14 +126,13 @@ outTable = table(samp.pxy(1,:)',samp.pxy(2,:)',...
 
 % output to JSON
 
-ch = max(2,nCh);
-fileID = fopen('Hexelated.json','w');
+fileID = fopen([ImgName,'_hex.json'],'w');
 JSON = jsonencode(outTable);
 fwrite(fileID,JSON);
 fclose(fileID);
 
 % output as CSV
-writetable(outTable,'Hexalated.csv');
+writetable(outTable,[ImgName,'_hex.csv']);
 
 %% Show Hexelated Images
 fig = figure;
@@ -122,13 +143,26 @@ fig.Position = [200,300,900,250];
     image(HexelateImg_samp./255); axis square; title('sampled (decimate)')
     subplot(1,3,3)
     image(HexelateImg_mean./255); axis square; title('mean')
-
+%% Show RGB Images
+if nCh > 1
+fig = figure;
+fig.Position = [200,300,900,250];
+    for ii = 1:nCh
+        subplot(1,nCh,ii)
+        imagesc(ImgMat(:,:,ii)); axis square; title(num2str(ii,'Channel %d'))
+        colormap("gray")
+    end
+end
 %% show image on Canvas dimension
 % parameters
 screenScale = 7; % points / cm; for display purpose
 nSteps = 256;
-ch = 2;%max(1,nCh); % which channel to use (1=R,2=G,3=B)
+ch2Use = 2;
+ch = max(ch2Use,nCh); % which channel to use (1=R,2=G,3=B)
 Color = [105,81,146]./255;
+Color = [96,155,213]./255; % ~koningsblauw blue
+% Color = [102,47,31]./255; % ~Transparent oxide brown
+
 
 % --- setup figure ---
     fig = figure;
@@ -157,7 +191,7 @@ Color = [105,81,146]./255;
 %% Instruction for Dot artwork
 screenScale = 4; % points / cm; for display purpose
 nSteps = 8;
-ch = max(2,nCh); % which channel to use (1=R,2=G,3=B)
+ch = max(ch2Use,nCh); % which channel to use (1=R,2=G,3=B)
 Color = [0,0,0]; % color of dots
 useMean = 1;
 
@@ -222,7 +256,7 @@ fig = figure;
 % setup and save output file
 fig.PaperUnits = 'inches';
 fig.PaperSize = fig.Position(3:4)./72; %72 points per inch
-saveas(fig,'instruction.pdf')
+saveas(fig,[ImgName,'_instruction.pdf'])
 
 %%
 % here, size of 1 is defined as distance between centers of adjacent
@@ -321,4 +355,62 @@ function sz = szLU(vals,nSteps)
     maxV = max(vals,[],'all');
     
     sz = (round ( (nSteps - 1) .* (vals - minV) ./ (maxV-minV ) ) ./ (nSteps-1)) + eps;
+end
+
+function hexImgAvg_double = hexSamp(ImgMat,nRow_target)
+    ImgMat = double(ImgMat);
+    %% Dimension of Image
+    xDim = size(ImgMat,2); yDim = size(ImgMat,1);
+    
+    % Pointy-top orientation
+    hexVertPitch_px = yDim/nRow_target; % an estimate
+    hexSize_pix = 2/3 * hexVertPitch_px;
+    hexHorizPitch_px = (sqrt(3) * hexSize_pix); % even number
+    
+    nRows = nRow_target;%floor(yDim / hexVertPitch_px);
+    nCols = round(2 * xDim / hexHorizPitch_px);
+    
+    hexImgAvg_double = imresize(ImgMat,[nRows,nCols],"box");
+%     hexImgSamp_double = imresize(ImgMat,[nRows,nCols],"nearest");
+    
+    %% averaging every two pixels (vectorized)
+
+    odd_nCols = floor(nCols/2);
+    odd_2nCols = 2*odd_nCols;
+    even_nCols = floor((nCols-1)/2);
+    even_2nCols = 2*even_nCols;
+    odd_end = 2*odd_nCols;
+    even_end = 2*even_nCols+1;
+    for row = 1:nRows
+        if mod(row, 2) == 1
+            % Odd row: average samples 1 and 2, 3 and 4, etc.
+            avgValue = repmat(mean(reshape(hexImgAvg_double(row,1:odd_end, :),[2,odd_nCols,3]), 1),2,1);
+            hexImgAvg_double(row,1:odd_end, :) = reshape(avgValue,[1,odd_2nCols,3]);
+        else
+            % Even row: average samples 2 and 3, 4 and 5, etc.
+            avgValue = repmat(mean(reshape(hexImgAvg_double(row,2:even_end, :),[2,even_nCols,3]), 1),2,1);
+            hexImgAvg_double(row,2:even_end, :) = reshape(avgValue,[1,(even_2nCols),3]);
+        end
+    end
+end
+
+function pixelArray = hexDouble2Array(hexImgAvg_double)
+    nRows = size(hexImgAvg_double,1);
+    nCols = size(hexImgAvg_double,2);
+    
+    % Create a linear array of pixel values and their x and y coordinates
+    pixelArray = [];
+    for row = 1:nRows
+        if mod(row, 2) == 1
+            % Odd row: take odd columns
+            cols = 1:2:nCols;
+        else
+            % Even row: take even columns
+            cols = 2:2:nCols;
+        end
+        for col = cols
+            pixelValue = squeeze(hexImgAvg_double(row, col, :));
+            pixelArray = [pixelArray; col, row, pixelValue'];
+        end
+    end
 end
