@@ -8,30 +8,63 @@
 % Written in Matlab R2019a.
 
 %% Clear workspace and load the image
-clear; close all
-ImgMat = imread('sample\Leonardo-Mona-Lisa.jpg');hexWidthPx = 30;
+clearvars; %close all
+ImgMat = imread('sample\Leonardo-Mona-Lisa.jpg');ImgName='monolisa';
+% ImgMat = imread('sample\gradient.bmp');ImgName='gradient';
 
 
 %%
-nRow_target = 40;
+nRow_target = 37;
 hexImgAvg_double = hexSamp(ImgMat,nRow_target);
-
-% Create a linear array of pixel values and their x and y coordinates
-pixelArray = hexDouble2Array(hexImgAvg_double);
+nSteps = 7;
+[disc_vals,norm_vals,residuals] = disc(squeeze(hexImgAvg_double(:,:,1)),nSteps);
+[dither_vals,~] = dither(squeeze(hexImgAvg_double(:,:,1)),nSteps);
+%%
+figure(1);
+subplot(2,3,1)
+imagesc(norm_vals);colorbar
+title("normalized")
+subplot(2,3,2)
+imagesc(disc_vals);colorbar
+title("discretized")
+subplot(2,3,3)
+imagesc(residuals,[-1,1]);colorbar
+title("residual")
+subplot(2,3,4)
+imagesc(dither_vals-disc_vals);colorbar
+title("dither - no dither")
+subplot(2,3,5)
+imagesc(dither_vals);colorbar
+title("discretized with dither")
+subplot(2,3,6)
+imagesc(norm_vals - dither_vals,[-1,1]);colorbar
+title("dither residual")
+%% Create a linear array of pixel values and their x and y coordinates
+pixelArray = hexDouble2Array(dither_vals);
 %% display the image
-
+nSteps = 7;
+maxMrkrSize = 30;
+figure(2);
 subplot(2,3,1)
 image(ImgMat)
 subplot(2,3,2)
 image(uint8(hexImgAvg_double))
 nRows = size(hexImgAvg_double,1);
 nCols = size(hexImgAvg_double,2);
-for ch = 1:3
+nCh = size(pixelArray,2)-2;
+Color = [0,.6,0.6];
+
+ax = subplot(2,3,3);
+sz = szLU(-double(mean(pixelArray(:,3:nCh+2),2)),nSteps);
+% sz = szLU(-double(pixelArray(:,3:5)*[.5,.0,.5]'),nSteps);
+scatter(pixelArray(:,1),pixelArray(:,2),maxMrkrSize.*sz,Color,'filled','Marker','o');
+ax.YDir = 'reverse';
+ax.YLim = [0.5,nRows+0.5];
+ax.XLim = [0.5,nCols+0.5];
+
+for ch = 1:nCh
     ax = subplot(2,3,3+ch);
-    nSteps = 7;
     sz = szLU(-double(pixelArray(:,ch+2)),nSteps);
-    maxMrkrSize = 20;
-    Color = 'k';
     scatter(pixelArray(:,1),pixelArray(:,2),maxMrkrSize.*sz,Color,'filled','Marker','o');
     ax.YDir = 'reverse';
     ax.YLim = [0.5,nRows+0.5];
@@ -356,6 +389,62 @@ function sz = szLU(vals,nSteps)
     
     sz = (round ( (nSteps - 1) .* (vals - minV) ./ (maxV-minV ) ) ./ (nSteps-1)) + eps;
 end
+
+function [disc_vals,norm_vals,residuals] = disc(vals,nSteps)
+    vals = double(vals);
+    minV = min(vals,[],'all');
+    maxV = max(vals,[],'all');
+    
+    norm_vals = (nSteps - 1) .* (vals - minV) ./ (maxV-minV ) ;
+    disc_vals = round(norm_vals);
+    residuals = norm_vals - disc_vals;
+end
+
+function [dither_vals,norm_vals] = dither(vals,nSteps)
+    vals = double(vals);
+
+    nRows = size(vals,1);
+    nCols = size(vals,2);
+    
+    minV = min(vals,[],'all');
+    maxV = max(vals,[],'all');
+    
+    norm_vals = (nSteps - 1) .* (vals - minV) ./ (maxV-minV ) ;
+    dither_vals = nan(size(norm_vals));
+    temp_vals = norm_vals;
+
+    dither_matrix = [   0,  0,  0,  .4;
+                        .4, 0,  .2, 0 ];
+    dither_x_offset = 1;
+
+    for row = 1:nRows
+        for col = (2-mod(row, 2)):2:nCols
+            dither_vals(row,col) = round(temp_vals(row,col));
+            residual = temp_vals(row,col) - dither_vals(row,col);
+            for x_offset = 1:size(dither_matrix,2)
+                for y_offset = 1:size(dither_matrix,1)
+                    iCol = col+x_offset-dither_x_offset-1;
+                    iRow = row+y_offset-1 ;
+                    ditherVal = dither_matrix(y_offset,x_offset);
+                    if ditherVal && ...
+                       iRow <=nRows && iRow > 0 &&...
+                       iCol <= nCols && iCol > 0
+                        temp_vals(iRow,iCol) = ...
+                            temp_vals(iRow,iCol)...
+                            + dither_matrix(y_offset,x_offset)*residual;
+                    end
+                end
+            end
+
+            % duplicate value for double-width representation
+            if col < nCols
+                dither_vals(row,col+1) = dither_vals(row,col) ;
+            end
+        end
+    end
+end
+
+
 
 function hexImgAvg_double = hexSamp(ImgMat,nRow_target)
     ImgMat = double(ImgMat);
